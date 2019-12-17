@@ -63,6 +63,19 @@ net_arg.add_argument('--norm_stabilizer_fixed_point', type=float, default=5.0)
 # Shared parameters for CIFAR
 net_arg.add_argument('--cnn_hid', type=int, default=64)
 
+# TACRED args
+net_arg.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
+net_arg.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
+net_arg.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
+net_arg.add_argument('--hidden_dim', type=int, default=200, help='RNN hidden state size.')
+net_arg.add_argument('--num_layers', type=int, default=2, help='Num of RNN layers.')
+net_arg.add_argument('--dropout', type=float, default=0.5, help='Input and RNN dropout rate.')
+net_arg.add_argument('--word_dropout', type=float, default=0.04, help='The rate at which randomly set a word to UNK.')
+net_arg.add_argument('--topn', type=int, default=1e10, help='Only finetune top N embeddings.')
+net_arg.add_argument('--lower', dest='lower', action='store_true', help='Lowercase all words.')
+net_arg.add_argument('--no-lower', dest='lower', action='store_false')
+
+
 
 # Data
 data_arg = add_argument_group('Data')
@@ -75,7 +88,7 @@ learn_arg.add_argument('--mode', type=str, default='train',
                        choices=['train', 'derive', 'test', 'single'],
                        help='train: Training ENAS, derive: Deriving Architectures,\
                        single: training one dag')
-learn_arg.add_argument('--batch_size', type=int, default=64)
+learn_arg.add_argument('--batch_size', type=int, default=50)
 learn_arg.add_argument('--test_batch_size', type=int, default=1)
 learn_arg.add_argument('--max_epoch', type=int, default=150)
 learn_arg.add_argument('--entropy_mode', type=str, default='reward', choices=['reward', 'regularizer'])
