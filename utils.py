@@ -9,8 +9,8 @@ import logging
 
 import numpy as np
 from trainer import is_gpu
-if not is_gpu:
-    import pygraphviz as pgv
+
+import pygraphviz as pgv
 
 import torch
 from torch.autograd import Variable
