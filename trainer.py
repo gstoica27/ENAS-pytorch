@@ -17,7 +17,7 @@ import utils
 
 
 logger = utils.get_logger()
-
+is_gpu = False
 
 def _apply_penalties(extra_out, args):
     """Based on `args`, optionally adds regularization penalty terms for
@@ -523,7 +523,8 @@ class Trainer(object):
         fname = (f'{self.epoch:03d}-{self.controller_step:06d}-'
                  f'{max_R:6.4f}-best.png')
         path = os.path.join(self.args.model_dir, 'networks', fname)
-        utils.draw_network(best_dag, path)
+        if not is_gpu:
+            utils.draw_network(best_dag, path)
         self.tb.image_summary('derive/best', [path], self.epoch)
 
         return best_dag
@@ -660,7 +661,8 @@ class Trainer(object):
                 fname = (f'{self.epoch:03d}-{self.controller_step:06d}-'
                          f'{avg_reward:6.4f}.png')
                 path = os.path.join(self.args.model_dir, 'networks', fname)
-                utils.draw_network(dag, path)
+                if not is_gpu:
+                    utils.draw_network(dag, path)
                 paths.append(path)
 
             self.tb.image_summary('controller/sample',

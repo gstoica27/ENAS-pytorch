@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 import utils
 from utils import Node
+from trainer import is_gpu
 
 
 def _construct_dags(prev_nodes, activations, func_names, num_blocks):
@@ -209,7 +210,7 @@ class Controller(torch.nn.Module):
                                self.func_names,
                                self.args.num_blocks)
 
-        if save_dir is not None:
+        if save_dir is not None and not is_gpu:
             for idx, dag in enumerate(dags):
                 utils.draw_network(dag,
                                    os.path.join(save_dir, f'graph{idx}.png'))
