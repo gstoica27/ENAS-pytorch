@@ -8,7 +8,6 @@ import json
 import logging
 
 import numpy as np
-from trainer import is_gpu
 
 import pygraphviz as pgv
 
