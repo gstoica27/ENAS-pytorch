@@ -214,6 +214,16 @@ class Trainer(object):
             self.train_controller()
 
         for self.epoch in range(self.start_epoch, self.args.max_epoch):
+
+            # if self.epoch % self.args.save_epoch == 0:
+            #     with _get_no_grad_ctx_mgr():
+            #         best_dag = dag if dag else self.derive()
+            #         self.evaluate(self.eval_data,
+            #                       best_dag,
+            #                       'val_best',
+            #                       max_num=self.args.batch_size * 100)
+            #     self.save_model()
+
             # 1. Training the shared parameters omega of the child models
             self.train_shared(dag=dag)
 
@@ -353,7 +363,10 @@ class Trainer(object):
         #                                  valid_idx,
         #                                  self.max_length,
         #                                  volatile=True)
-        inputs, targets = self.valid_data[valid_idx]
+        valid_batch = self.valid_data[valid_idx]
+        inputs = valid_batch[:7]
+        targets = valid_batch[7]
+        # inputs, targets = self.valid_data[valid_idx]
         valid_loss, hidden, _ = self.get_loss(inputs, targets, hidden, dag)
         valid_loss = utils.to_item(valid_loss.data)
 
@@ -496,18 +509,20 @@ class Trainer(object):
         all_predictions = []
         all_labels = []
         for i, batch in enumerate(source):
-            inputs, targets = batch
+            inputs = batch[:7]
+            targets = batch[7]
+            # inputs, targets = batch
             output, hidden, _ = self.shared(inputs,
                                             dag,
                                             hidden=hidden,
                                             is_train=False)
             output_flat = output.view(-1, self.args.num_classes)
-            total_loss += len(inputs) * self.ce(output_flat, targets).data
+            total_loss += len(targets) * self.ce(output_flat, targets).data
             hidden.detach_()
 
             all_labels += list(targets.data.numpy())
             predictions = torch.argmax(output_flat, 1)
-            all_predictions += list(predictions.data.nump())
+            all_predictions += list(predictions.data.numpy())
 
         val_loss = utils.to_item(total_loss) / len(data)
         ppl = math.exp(val_loss)
