@@ -364,8 +364,17 @@ class Trainer(object):
         #                                  self.max_length,
         #                                  volatile=True)
         valid_batch = self.valid_data[valid_idx]
-        inputs = valid_batch[:7]
-        targets = valid_batch[7]
+
+        # inputs = valid_batch[:7]
+        # targets = valid_batch[7]
+
+        if self.cuda:
+            inputs = [b.cuda() for b in valid_batch[:7]]
+            targets = valid_batch[7].cuda()
+        else:
+            inputs = [b for b in valid_batch[:7]]
+            targets = valid_batch[7]
+
         # inputs, targets = self.valid_data[valid_idx]
         valid_loss, hidden, _ = self.get_loss(inputs, targets, hidden, dag)
         valid_loss = utils.to_item(valid_loss.data)
