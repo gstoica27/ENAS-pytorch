@@ -7,7 +7,7 @@ import random
 import torch
 import numpy as np
 
-from utils import constant, helper, vocab
+from tacred_utils import constant, helper, vocab
 
 class DataLoader(object):
     """
