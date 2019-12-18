@@ -143,7 +143,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
         self.corpus = corpus
 
         self.decoder = nn.Linear(args.shared_hid, args.num_classes)
-        self.token_emb = EmbeddingDropout(corpus.vocab_size,
+        self.token_emb = EmbeddingDropout(args.vocab_size,
                                           args.emb_dim,
                                           dropout=args.shared_dropoute,
                                           padding_idx=constant.PAD_ID)
@@ -151,11 +151,11 @@ class TACRED_RNN(models.shared_base.SharedModel):
         self.token_emb.weight.data.copy_(self.emb_matrix)
 
         if args.pos_dim > 0:
-            self.pos_emb = nn.EmbeddingDropout(len(constant.POS_TO_ID), args.pos_dim,
+            self.pos_emb = EmbeddingDropout(len(constant.POS_TO_ID), args.pos_dim,
                                                dropout=args.shared_dropoute,
                                                padding_idx=constant.PAD_ID)
-        if self.ner_dim > 0:
-            self.ner_emb = nn.EmbeddingDropout(len(constant.NER_TO_ID), args.ner_dim,
+        if args.pos_dim > 0:
+            self.ner_emb = EmbeddingDropout(len(constant.NER_TO_ID), args.ner_dim,
                                                dropout=args.shared_dropoute,
                                                padding_idx=constant.PAD_ID)
 
@@ -268,7 +268,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
         h1tohT = []
         logits = []
         for step in range(time_steps):
-            x_t = embed[step]
+            x_t = embed[:, step, :]
             logit, hidden = self.cell(x_t, hidden, dag)
 
             hidden_norms = hidden.norm(dim=-1)
@@ -307,11 +307,12 @@ class TACRED_RNN(models.shared_base.SharedModel):
 
         h1tohT = torch.stack(h1tohT)
         output = torch.stack(logits)
+        output = torch.transpose(output, 0, 1)
+        h1tohT = torch.transpose(h1tohT, 0, 1)
         # Apply masks
         masks = masks.eq(constant.PAD_ID).view(batch_size, -1, 1)
         output = output * masks
         # Average all outputs with masking
-        output = torch.mean(output, 1)
         h1tohT = h1tohT * masks
 
         raw_output = output
@@ -319,6 +320,8 @@ class TACRED_RNN(models.shared_base.SharedModel):
         if self.args.shared_dropout > 0:
             output = self.lockdrop(output,
                                    self.args.shared_dropout if is_train else 0)
+
+        output = torch.mean(output, 1)
 
         dropped_output = output
 

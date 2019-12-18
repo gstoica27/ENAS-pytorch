@@ -242,6 +242,7 @@ def save_args(args):
     logger.info("[*] PARAM path: %s" % param_path)
 
     with open(param_path, 'w') as fp:
+        del args.emb_matrix
         json.dump(args.__dict__, fp, indent=4, sort_keys=True)
 
 def save_dag(args, dag, name):

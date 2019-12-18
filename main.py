@@ -67,7 +67,7 @@ def main(args):  # pylint:disable=redefined-outer-name
         dataset = data.image.Image(args.data_path)
     else:
         raise NotImplementedError(f"{args.dataset} is not supported")
-    if args.data != 'tacred':
+    if args.dataset != 'tacred':
         trnr = trainer.Trainer(args, dataset)
     else:
         trnr = re_trainer.Trainer(args, dataset)

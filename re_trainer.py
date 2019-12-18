@@ -135,7 +135,7 @@ class Trainer(object):
             if regularizer[1]:
                 logger.info(f'{regularizer[0]}')
 
-        self.train_data = self.dataset['train_data']
+        self.train_data = self.dataset['train_batch']
         # NOTE(brendan): The validation set data is batchified twice
         # separately: once for computing rewards during the Train Controller
         # phase (valid_data, batch size == 64), and once for evaluating ppl
@@ -298,8 +298,8 @@ class Trainer(object):
                 inputs = [b for b in batch[:7]]
                 labels = batch[7]
 
-            if step > max_step:
-                break
+            # if step > max_step:
+            #     break
 
             dags = dag if dag else self.controller.sample(
                 self.args.shared_num_sample)
