@@ -210,28 +210,11 @@ class Trainer(object):
 
         dag = utils.load_dag(self.args) if single else None
 
-        if self.epoch % self.args.save_epoch == 0:
-            with _get_no_grad_ctx_mgr():
-                best_dag = dag if dag else self.derive()
-                self.evaluate(self.eval_data,
-                              best_dag,
-                              'val_best',
-                              max_num=self.args.batch_size * 100)
-
         if self.args.shared_initial_step > 0:
             self.train_shared(self.args.shared_initial_step)
             self.train_controller()
 
         for self.epoch in range(self.start_epoch, self.args.max_epoch):
-
-            # if self.epoch % self.args.save_epoch == 0:
-            #     with _get_no_grad_ctx_mgr():
-            #         best_dag = dag if dag else self.derive()
-            #         self.evaluate(self.eval_data,
-            #                       best_dag,
-            #                       'val_best',
-            #                       max_num=self.args.batch_size * 100)
-            #     self.save_model()
 
             # 1. Training the shared parameters omega of the child models
             self.train_shared(dag=dag)
