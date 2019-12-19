@@ -543,9 +543,10 @@ class Trainer(object):
             output_flat = output.view(-1, self.args.num_classes)
             total_loss += len(targets) * self.ce(output_flat, targets).data
             hidden.detach_()
-
+            
+            targets = targets.cpu()
             all_labels += list(targets.data.numpy())
-            predictions = torch.argmax(output_flat, 1)
+            predictions = torch.argmax(output_flat, 1).cpu()
             all_predictions += list(predictions.data.numpy())
 
         val_loss = utils.to_item(total_loss) / len(data)
