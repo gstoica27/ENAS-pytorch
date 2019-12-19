@@ -93,6 +93,7 @@ class EmbeddingDropout(torch.nn.Embedding):
         assert (dropout >= 0.0) and (dropout < 1.0), ('Dropout must be >= 0.0 '
                                                       'and < 1.0')
         self.scale = scale
+        self.padding_idx = padding_idx
 
     def forward(self, inputs):  # pylint:disable=arguments-differ
         """Embeds `inputs` with the dropped out embedding weight matrix."""
@@ -112,12 +113,20 @@ class EmbeddingDropout(torch.nn.Embedding):
         if self.scale and self.scale != 1:
             masked_weight = masked_weight * self.scale
 
+        # cuda = torch.device('cuda')
+        # inputs = inputs.to(cuda)
+        # masked_weight = masked_weight.to(cuda)
+        # self.max_norm = self.max_norm.to(cuda)
+        # self.norm_type = self.norm_type.to(cuda)
+
+
         return F.embedding(inputs,
                            masked_weight,
                            max_norm=self.max_norm,
                            norm_type=self.norm_type,
                            scale_grad_by_freq=self.scale_grad_by_freq,
-                           sparse=self.sparse)
+                           sparse=self.sparse,
+                           padding_idx=self.padding_idx)
 
 
 class LockedDropout(nn.Module):

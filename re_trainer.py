@@ -207,7 +207,16 @@ class Trainer(object):
             single (bool): If True it won't train the controller and use the
                            same dag instead of derive().
         """
+
         dag = utils.load_dag(self.args) if single else None
+
+        if self.epoch % self.args.save_epoch == 0:
+            with _get_no_grad_ctx_mgr():
+                best_dag = dag if dag else self.derive()
+                self.evaluate(self.eval_data,
+                              best_dag,
+                              'val_best',
+                              max_num=self.args.batch_size * 100)
 
         if self.args.shared_initial_step > 0:
             self.train_shared(self.args.shared_initial_step)
@@ -518,8 +527,14 @@ class Trainer(object):
         all_predictions = []
         all_labels = []
         for i, batch in enumerate(source):
-            inputs = batch[:7]
-            targets = batch[7]
+
+            if self.cuda:
+                inputs = [b.cuda() for b in batch[:7]]
+                targets = batch[7].cuda()
+            else:
+                inputs = [b for b in batch[:7]]
+                targets = batch[7]
+
             # inputs, targets = batch
             output, hidden, _ = self.shared(inputs,
                                             dag,
