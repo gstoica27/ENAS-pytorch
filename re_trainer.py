@@ -371,7 +371,7 @@ class Trainer(object):
         valid_loss, hidden, _ = self.get_loss(inputs, targets, hidden, dag)
         valid_loss = utils.to_item(valid_loss.data)
 
-        valid_ppl = math.exp(valid_loss)
+        valid_ppl = valid_loss# math.exp(valid_loss)
 
         # TODO: we don't know reward_c
         if self.args.ppl_square:
@@ -533,18 +533,18 @@ class Trainer(object):
             all_predictions += list(predictions.data.numpy())
 
         val_loss = utils.to_item(total_loss) / len(data)
-        ppl = math.exp(val_loss)
+        # ppl = math.exp(val_loss)
 
         prec_micro, recall_micro, f1_micro = scorer.score(all_labels, all_predictions)
 
         self.tb.scalar_summary(f'eval/{name}_loss', val_loss, self.epoch)
-        self.tb.scalar_summary(f'eval/{name}_ppl', ppl, self.epoch)
+        # self.tb.scalar_summary(f'eval/{name}_ppl', ppl, self.epoch)
 
         self.tb.scalar_summary(f'eval/{name}_prec', prec_micro, self.epoch)
         self.tb.scalar_summary(f'eval/{name}_recall', recall_micro, self.epoch)
         self.tb.scalar_summary(f'eval/{name}_f1', f1_micro, self.epoch)
 
-        loss_log = f'eval | loss: {val_loss:8.2f} | ppl: {ppl:8.2f}'
+        loss_log = f'eval | loss: {val_loss:8.2f} ' # | ppl: {ppl:8.2f}'
         score_log = f'prec: {prec_micro:8.2f} | recall: {recall_micro:8.2f} | f1:{f1_micro:8.2f}'
         agg_log = loss_log + ' | ' + score_log
         logger.info(agg_log)
@@ -723,13 +723,13 @@ class Trainer(object):
         # NOTE(brendan): The raw loss, without adding in the activation
         # regularization terms, should be used to compute ppl.
         cur_raw_loss = utils.to_item(raw_total_loss) / self.args.log_step
-        ppl = math.exp(cur_raw_loss)
+        # ppl = math.exp(cur_raw_loss)
 
         logger.info(f'| epoch {self.epoch:3d} '
                     f'| lr {self.shared_lr:4.2f} '
                     f'| raw loss {cur_raw_loss:.2f} '
-                    f'| loss {cur_loss:.2f} '
-                    f'| ppl {ppl:8.2f}')
+                    f'| loss {cur_loss:.2f} ')
+                    # f'| ppl {ppl:8.2f}')
 
         # Tensorboard
         if self.tb is not None:
