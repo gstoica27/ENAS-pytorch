@@ -408,7 +408,7 @@ class Trainer(object):
         # self.shared.eval()
 
         avg_reward_base = None
-        baseline = None
+        baseline = 0. # None
         adv_history = []
         entropy_history = []
         reward_history = []
@@ -438,15 +438,18 @@ class Trainer(object):
             reward_history.extend(rewards)
             entropy_history.extend(np_entropies)
 
-            # moving average baseline
-            if baseline is None:
-                baseline = rewards
-            else:
-                decay = self.args.ema_baseline_decay
-                baseline = decay * baseline + (1 - decay) * rewards
-
+            # rewards should be based on moving average from previous batch
             adv = rewards - baseline
             adv_history.extend(adv)
+
+            # moving average baseline. Compute average based on baseline and most recent rewards
+            # if baseline is None:
+            #     baseline = rewards
+            # else:
+            decay = self.args.ema_baseline_decay
+            baseline = decay * rewards + (1 - decay) * baseline
+                # baseline = decay * baseline + (1 - decay) * rewards
+
 
             # policy loss
             loss = -log_probs * utils.get_variable(adv,
