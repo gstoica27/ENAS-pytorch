@@ -347,7 +347,7 @@ class Trainer(object):
         valid_loss, hidden, _ = self.get_loss(inputs, targets, hidden, dag)
         valid_loss = utils.to_item(valid_loss.data)
 
-        valid_ppl = math.exp(valid_loss)
+        valid_ppl = valid_loss # math.exp(valid_loss)
 
         # TODO: we don't know reward_c
         if self.args.ppl_square:
@@ -489,14 +489,14 @@ class Trainer(object):
             output_flat = output.view(-1, self.dataset.num_tokens)
             total_loss += len(inputs) * self.ce(output_flat, targets).data
             hidden.detach_()
-            ppl = math.exp(utils.to_item(total_loss) / (count + 1) / self.max_length)
+            # ppl = math.exp(utils.to_item(total_loss) / (count + 1) / self.max_length)
 
         val_loss = utils.to_item(total_loss) / len(data)
-        ppl = math.exp(val_loss)
+        # ppl = math.exp(val_loss)
 
         self.tb.scalar_summary(f'eval/{name}_loss', val_loss, self.epoch)
-        self.tb.scalar_summary(f'eval/{name}_ppl', ppl, self.epoch)
-        logger.info(f'eval | loss: {val_loss:8.2f} | ppl: {ppl:8.2f}')
+        # self.tb.scalar_summary(f'eval/{name}_ppl', ppl, self.epoch)
+        logger.info(f'eval | loss: {val_loss:8.2f}') #' | ppl: {ppl:8.2f}')
 
     def derive(self, sample_num=None, valid_idx=0):
         """TODO(brendan): We are always deriving based on the very first batch
@@ -672,13 +672,13 @@ class Trainer(object):
         # NOTE(brendan): The raw loss, without adding in the activation
         # regularization terms, should be used to compute ppl.
         cur_raw_loss = utils.to_item(raw_total_loss) / self.args.log_step
-        ppl = math.exp(cur_raw_loss)
+        # ppl = math.exp(cur_raw_loss)
 
         logger.info(f'| epoch {self.epoch:3d} '
                     f'| lr {self.shared_lr:4.2f} '
                     f'| raw loss {cur_raw_loss:.2f} '
-                    f'| loss {cur_loss:.2f} '
-                    f'| ppl {ppl:8.2f}')
+                    f'| loss {cur_loss:.2f} ')
+                    # f'| ppl {ppl:8.2f}')
 
         # Tensorboard
         if self.tb is not None:

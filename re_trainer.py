@@ -736,6 +736,6 @@ class Trainer(object):
             self.tb.scalar_summary('shared/loss',
                                    cur_loss,
                                    self.shared_step)
-            self.tb.scalar_summary('shared/perplexity',
-                                   ppl,
-                                   self.shared_step)
+            # self.tb.scalar_summary('shared/perplexity',
+            #                        ppl,
+            #                        self.shared_step)
