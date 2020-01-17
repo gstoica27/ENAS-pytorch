@@ -50,6 +50,12 @@ def add_node(graph, node_id, label, shape='box', style='filled'):
         color = 'greenyellow'
     elif label == 'avg':
         color = 'seagreen3'
+    elif label == 'LSTM':
+        color = 'skyblue'
+    elif label == 'Obj Pos':
+        color = 'grey'
+    elif label == 'Subj Pos':
+        color = 'aquamarine'
     else:
         color = 'white'
 
@@ -84,6 +90,31 @@ def draw_network(dag, path):
 
     graph.layout(prog='dot')
     graph.draw(path)
+
+def draw_mlp_network(dag, path):
+    makedirs(os.path.dirname(path))
+    graph = pgv.AGraph(directed=True, strict=True,
+                       fontname='Helvetica', arrowtype='open') # not work?
+
+    checked_ids = [0, 1, 2]
+
+    if 0 in dag:
+        add_node(graph, 0, 'LSTM')
+    if 1 in dag:
+        add_node(graph, 1, 'Subj Pos')
+    if 2 in dag:
+        add_node(graph, 2, 'Obj Pos')
+
+    for idx in dag:
+        for node in dag[idx]:
+            # if node.id not in checked_ids:
+            add_node(graph, node.id, node.name)
+            # checked_ids.append(node.id)
+            graph.add_edge(idx, node.id)
+
+    graph.layout(prog='dot')
+    graph.draw(path)
+
 
 def make_gif(paths, gif_path, max_frame=50, prefix=""):
     import imageio

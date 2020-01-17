@@ -223,3 +223,28 @@ class Controller(torch.nn.Module):
         zeros = torch.zeros(batch_size, self.args.controller_hid)
         return (utils.get_variable(zeros, self.args.cuda, requires_grad=False),
                 utils.get_variable(zeros.clone(), self.args.cuda, requires_grad=False))
+
+
+if __name__ == '__main__':
+    class AttributeDict(object):
+        def __init__(self, d):
+            d = d.copy()
+            # Convert all nested dictionaries into AttrDict.
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    d[k] = AttributeDict(v)
+            # Convert d to AttrDict.
+            self.__dict__ = d
+
+
+    args = {'network_type': 'rnn',
+            'controller_hid': 10,
+            'cuda': False,
+            'shared_rnn_activations': ['tanh', 'sigmoid', 'relu', 'linear'],
+            'num_blocks': 10,
+            'softmax_temperature': .5}
+    args = AttributeDict(args)
+
+
+    controller = Controller(args=args)
+    dags = controller.sample(batch_size=10)
