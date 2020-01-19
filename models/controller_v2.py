@@ -194,27 +194,27 @@ class Controller(torch.nn.Module):
 
             elif network_type == 'mlp':
                 # input embeddings for index
-                input_embs = torch.nn.Embedding(args.num_mlp_inputs, args.controller_hid)
+                self.input_embs = torch.nn.Embedding(args.num_mlp_inputs, args.controller_hid)
                 # index calculation attentions
-                idx_l_1 = torch.nn.Linear(args.controller_hid, args.controller_hid)
-                idx_l_2 = torch.nn.Linear(args.controller_hid, args.controller_hid)
-                idx_l_3 = torch.nn.Linear(args.controller_hid, 1)
+                self.idx_l_1 = torch.nn.Linear(args.controller_hid, args.controller_hid)
+                self.idx_l_2 = torch.nn.Linear(args.controller_hid, args.controller_hid)
+                self.idx_l_3 = torch.nn.Linear(args.controller_hid, 1)
                 # layer embeddings
-                layer_embs = torch.nn.Embedding(len(args.mlp_layer_sizes), args.controller_hid)
+                self.layer_embs = torch.nn.Embedding(len(args.mlp_layer_sizes), args.controller_hid)
                 # activation embeddings
-                act_embs = torch.nn.Embedding(len(args.shared_mlp_activations), args.controller_hid)
+                self.act_embs = torch.nn.Embedding(len(args.shared_mlp_activations), args.controller_hid)
                 act_names = args.shared_mlp_activations
                 # create LSTM parameters
-                lstm = torch.nn.LSTMCell(args.controller_hid, args.controller_hid)
+                self.lstm = torch.nn.LSTMCell(args.controller_hid, args.controller_hid)
                 # store mlp parameters
-                self.network_configs['mlp'] = {'input_embs': input_embs,
-                                               'index_attn': {'l_1': idx_l_1,
-                                                              'l_2': idx_l_2,
-                                                              'l_3': idx_l_3},
-                                               'layer_embs': layer_embs,
-                                               'act_embs': act_embs,
+                self.network_configs['mlp'] = {'input_embs': self.input_embs,
+                                               'index_attn': {'l_1': self.idx_l_1,
+                                                              'l_2': self.idx_l_2,
+                                                              'l_3': self.idx_l_3},
+                                               'layer_embs': self.layer_embs,
+                                               'act_embs': self.act_embs,
                                                'act_names': act_names,
-                                               'lstm': lstm,
+                                               'lstm': self.lstm,
                                                'num_blocks': args.num_mlp_blocks,
                                                'layer_map': args.mlp_layer_sizes,
                                                'max_merge': args.max_mlp_merge}
@@ -490,7 +490,7 @@ class Controller(torch.nn.Module):
         if with_details:
             return dags, torch.cat(log_probs), torch.cat(entropies)
 
-        return dags, (prev_nodes, activations)
+        return dags
 
 if __name__ == '__main__':
     class AttributeDict(object):
@@ -508,7 +508,7 @@ if __name__ == '__main__':
             'num_mlp_inputs': 3,
             'controller_hid': 10,
             'mlp_layer_sizes': [5],
-            'shared_mlp_activations': ['tanh', 'sigmoid', 'ReLU', 'identity'],
+            'shared_mlp_activations': ['tanh', 'sigmoid', 'relu', 'identity'],
             'num_mlp_blocks': 10,
             'cuda': False,
             'shared_rnn_activations': ['tanh', 'sigmoid', 'relu', 'linear'],

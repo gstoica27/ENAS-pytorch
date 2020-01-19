@@ -10,6 +10,7 @@ from torch.autograd import Variable
 import models.shared_base
 import utils
 from tacred_utils import constant
+from _collections import defaultdict
 
 
 logger = utils.get_logger()
@@ -159,16 +160,20 @@ class TACRED_RNN(models.shared_base.SharedModel):
         self.emb_matrix = torch.from_numpy(args.emb_matrix)
         self.token_emb.weight.data.copy_(self.emb_matrix)
 
+        self.mlp_input_dims = [args.shared_hid]
+
         if args.pos_dim > 0:
             self.pos_emb = EmbeddingDropout(len(constant.POS_TO_ID), args.pos_dim,
                                                dropout=args.shared_dropoute,
                                                padding_idx=constant.PAD_ID)
-        if args.pos_dim > 0:
+            self.mlp_input_dims.append(args.pos_dim)
+        if args.ner_dim > 0:
             self.ner_emb = EmbeddingDropout(len(constant.NER_TO_ID), args.ner_dim,
                                                dropout=args.shared_dropoute,
                                                padding_idx=constant.PAD_ID)
+            self.mlp_input_dims.append(args.pos_dim)
 
-        input_size = args.emb_dim + args.pos_dim + args.ner_dim
+        input_size = args.emb_dim
         
         self.encoder = nn.Linear(input_size, args.shared_hid)
         
@@ -212,6 +217,43 @@ class TACRED_RNN(models.shared_base.SharedModel):
                                    for idx in self.w_c
                                    for jdx in self.w_c[idx]])
 
+        # MLP architecture
+        all_weights = []  # for model.parameters resetting
+        # This is equivalent to creating a [NumBlocks, NumActivations, NumPossibleInputs, HiddenDim]
+        # tensor.
+        self.mlp_weights = collections.defaultdict(lambda: collections.defaultdict(dict))
+        # TODO: Remove this +3 magic number (need to reflect it back across controller_v2)
+        for block_id in range(args.num_blocks + 3):
+            for activation_id in range(args.shared_mlp_activations):
+                # The first N blocks act as input encoders. These cannot take residual inputs from
+                # each other, and so each has only one possible weight per activation layer
+                if block_id < len(self.mlp_input_dims):
+                    # first blocks may have different input dimensions
+                    mlp_input_dim = self.mlp_input_dims[block_id]
+                    layer = nn.Linear(mlp_input_dim, args.shared_hid, bias=False)
+                    self.mlp_weights[block_id][activation_id][block_id] = layer
+                    all_weights.append(layer)
+                # The remaining NumBlocks blocks can take in inputs from any of the previous layers
+                # in NumBlocks + the input layers. This means we must loop through block_id
+                # (current layer number) in order to account for all possibilities
+                else:
+                    for input_idx in range(block_id):
+                        # account for possible inputs
+                        if input_idx < len(self.mlp_input_dims):
+                            layer = nn.Linear(self.mlp_input_dims[input_idx],
+                                              args.shared_hid,
+                                              bias=False)
+                        else:
+                            layer = nn.Linear(args.max_mlp_merge *  args.shared_hid,
+                                              args.shared_hid,
+                                              bias=False)
+                        self.mlp_weights[block_id][activation_id][input_idx] = layer
+                        all_weights.append(layer)
+
+        self.mlp_weights_dummy = nn.ModuleList(all_weights)
+
+        self.importance_fn = nn.Linear(args.shared_hid, 1, bias=True)
+
         if args.mode == 'train':
             self.batch_norm = nn.BatchNorm1d(args.shared_hid)
         else:
@@ -222,14 +264,80 @@ class TACRED_RNN(models.shared_base.SharedModel):
 
         logger.info(f'# of parameters: {format(self.num_parameters, ",d")}')
 
+    def create_instructions(self, dag):
+        """
+        Creates ordered list of instructions from dag
+        :param dag: dict of dag architecture
+        :type dag: dict
+        :return: instructions dict
+        :rtype: dict
+        """
+        instructions = defaultdict(list)
+        for source, targets in dag.items():
+            for target in targets:
+                target_node = target.id
+                target_activation = target.name
+                instructions[target_node].append((source, target_activation))
+        return instructions
+
+    def apply_mlp(self, inputs, dag):
+        """
+        Apply MLP on multi-input network.
+        :param inputs: [LSTM, (Subj Pos), (Obj Pos)] (...) means optional argument
+        :type inputs:
+        :param dag: dag dictionary
+        :type dag:
+        :return: mlp outputs (this is one layer before dense + softmax
+        :rtype:
+        """
+        # obtain instructions
+        instructions = self.create_instructions(dag)
+        projection_storage = defaultdict(None)
+        activation_storage = defaultdict(lambda: 'identity')
+
+        for idx, input in enumerate(inputs):
+            projection_storage[idx] = input
+            activation_storage[idx] = 'identity'
+
+        instruction_keys = sorted(instructions)
+        # for target_node, source_nodes in instructions:
+        for target_node in instruction_keys:
+            source_nodes = instructions[target_node]
+            all_projections = []
+            # for each source node, apply projection and to source list
+            for source_node, target_activation in source_nodes:
+                # obtain source value (tensor output at node)
+                source_value = projection_storage[source_node]
+                # store target activation, all activations from sources are the same
+                activation_storage[target_node] = target_activation
+                # end of model, need to average sources for output
+                if target_node >= (self.args.num_blocks + 3):
+                    all_projections.append(source_value)
+                else:
+                    # obtain projection
+                    projection = self.mlp_weights[target_node][target_activation][source_node]
+                    # project source according to dag edge weight
+                    source_projected = projection(source_value)
+                    # add projection to list of all affected sources
+                    all_projections.append(source_projected)
+            # All sources have been transformed, merge then and activate the result
+            projections_merged = torch.mean(torch.stack(all_projections, dim=-1), dim=-1)
+            target_activation = self.get_f(activation_storage[target_node])
+            projections_activated = target_activation(projections_merged)
+            # store node output for future layer lookup and reference
+            projection_storage[target_node] = projections_activated
+        # TODO: Add batchnorm
+        return projection_storage[instruction_keys[-1]]
+
+
     def forward(self,  # pylint:disable=arguments-differ
                 inputs,
                 dag,
                 hidden=None,
-                is_train=True):
+                is_train=True,
+                mlp_dag=None):
         # time_steps = inputs.size(0)
         # batch_size = inputs.size(1)
-
 
         is_train = is_train and self.args.mode in ['train']
 
@@ -329,8 +437,16 @@ class TACRED_RNN(models.shared_base.SharedModel):
         if self.args.shared_dropout > 0:
             output = self.lockdrop(output,
                                    self.args.shared_dropout if is_train else 0)
-
-        output = torch.mean(output, 1)
+        # apply MLP based attention
+        if mlp_dag is not None:
+            mlp_logits = self.apply_mlp(inputs=output, dag=mlp_dag)
+            # [BatchSize, NumSteps, 1]
+            mlp_attn = torch.softmax(self.importance_fn(mlp_logits), dim=1)
+            # distribute weights
+            output *= mlp_attn
+            output = torch.sum(output, 1)
+        else:
+            output = torch.mean(output, 1)
 
         dropped_output = output
 
@@ -424,7 +540,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
             f = F.relu
         elif name == 'tanh':
             f = F.tanh
-        elif name == 'identity':
+        elif name == 'identity' or name == 'avg' or 'output':
             f = lambda x: x
         elif name == 'sigmoid':
             f = F.sigmoid

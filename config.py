@@ -23,6 +23,7 @@ net_arg.add_argument('--network_type', type=str, choices=['rnn', 'cnn'], default
 net_arg.add_argument('--num_blocks', type=int, default=12)
 net_arg.add_argument('--tie_weights', type=str2bool, default=True)
 net_arg.add_argument('--controller_hid', type=int, default=100)
+net_arg.add_argument('--num_mlp_blocks', type=int, default=12)
 
 # Shared parameters for PTB
 # NOTE(brendan): See Merity config for wdrop
