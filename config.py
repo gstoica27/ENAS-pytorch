@@ -19,11 +19,19 @@ def add_argument_group(name):
 net_arg = add_argument_group('Network')
 net_arg.add_argument('--network_type', type=str, choices=['rnn', 'cnn'], default='rnn')
 
-# Controller
+# RNN Controller
 net_arg.add_argument('--num_blocks', type=int, default=12)
 net_arg.add_argument('--tie_weights', type=str2bool, default=True)
 net_arg.add_argument('--controller_hid', type=int, default=100)
 net_arg.add_argument('--num_mlp_blocks', type=int, default=12)
+# MLP Controller
+net_arg.add_argument('--apply_mlp', type=str2bool, default=True)
+net_arg.add_argument('--num_mlp_inputs', type=int, default=3)
+net_arg.add_argument('--num_mlp_blocks', type=int, default=10)
+net_arg.add_argument('--shared_mlp_activations', type=eval, default="['tanh', 'ReLU', 'identity', 'sigmoid']")
+net_arg.add_argument('--num_rnn_blocks', type=int, default=10)
+net_arg.add_argument('--max_mlp_merge', type=int, default=3)
+net_arg.add_argument('--network_types', type=eval, default="{'mlp', 'rnn'}")
 
 # Shared parameters for PTB
 # NOTE(brendan): See Merity config for wdrop
