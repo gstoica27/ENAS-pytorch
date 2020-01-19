@@ -281,14 +281,23 @@ def save_dag(args, dag, name):
     logger.info("[*] Save dag : {}".format(save_path))
     json.dump(dag, open(save_path, 'w'))
 
-def load_dag(args):
-    load_path = os.path.join(args.dag_path)
+def load_dag(args, dag_type='rnn'):
+    if dag_type == 'rnn':
+        load_path = os.path.join(args.dag_path)
+        save_path = 'dag.json'
+        save_img = 'dag.png'
+    elif dag_type == 'mlp':
+        load_path = os.path.join(args.mlp_dag_path)
+        save_path = 'mlp_dag.json'
+        save_img = 'mlp_dag.png'
+    else:
+        raise ValueError('dag_type must be: rnn or mlp. Currently: {}'.format(dag_type))
     logger.info("[*] Load dag : {}".format(load_path))
     with open(load_path) as f:
         dag = json.load(f)
     dag = {int(k): [Node(el[0], el[1]) for el in v] for k, v in dag.items()}
-    save_dag(args, dag, "dag.json")
-    draw_network(dag, os.path.join(args.model_dir, "dag.png"))
+    save_dag(args, dag, save_path)
+    draw_network(dag, os.path.join(args.model_dir, save_img))
     return dag          
   
 def makedirs(path):

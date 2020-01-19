@@ -175,8 +175,8 @@ class Controller(torch.nn.Module):
                 for idx in range(self.args.num_rnn_blocks):
                     num_tokens += [idx + 1, len(args.shared_rnn_activations)]
 
-                encoder = torch.nn.Embedding(sum(num_tokens), args.controller_hid)
-                lstm = torch.nn.LSTMCell(args.controller_hid, args.controller_hid)
+                self.encoder = torch.nn.Embedding(sum(num_tokens), args.controller_hid)
+                self.lstm = torch.nn.LSTMCell(args.controller_hid, args.controller_hid)
                 # TODO: These should be shared. However in the base code they are not.
                 #  Experiment how sharing them affects model
                 decoders = []
@@ -184,12 +184,12 @@ class Controller(torch.nn.Module):
                     decoder = torch.nn.Linear(args.controller_hid, size)
                     decoders.append(decoder)
 
-                decoders = torch.nn.ModuleList(decoders)
+                self._decoders = torch.nn.ModuleList(decoders)
 
                 self.network_configs['rnn'] = {'num_tokens': num_tokens,
                                                'func_names': args.shared_rnn_activations,
-                                               'encoder': encoder,
-                                               'lstm': lstm,
+                                               'encoder': self.encoder,
+                                               'lstm': self.lstm,
                                                'decoders': decoders}
 
             elif network_type == 'mlp':

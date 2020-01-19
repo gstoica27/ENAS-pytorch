@@ -209,6 +209,10 @@ class Trainer(object):
         """
 
         dag = utils.load_dag(self.args) if single else None
+        if single and self.args.apply_mlp:
+            mlp_dag = utils.load_dag(self.args, dag_type='mlp')
+        else:
+            mlp_dag = None
 
         if self.args.shared_initial_step > 0:
             self.train_shared(self.args.shared_initial_step)
@@ -217,7 +221,8 @@ class Trainer(object):
         for self.epoch in range(self.start_epoch, self.args.max_epoch):
 
             # 1. Training the shared parameters omega of the child models
-            self.train_shared(dag=dag)
+            self.train_shared(dag=dag, mlp_dags=mlp_dag)
+
 
             # 2. Training the controller parameters theta
             if not single:
@@ -225,17 +230,23 @@ class Trainer(object):
 
             if self.epoch % self.args.save_epoch == 0:
                 with _get_no_grad_ctx_mgr():
-                    best_dag = dag if dag else self.derive()
+                    if self.args.apply_mlp:
+                        best_dag, best_mlp_dag = dag, mlp_dag if (dag and mlp_dag) else self.derive()
+                    else:
+                        best_dag = dag if dag else self.derive()
+                        best_mlp_dag = None
+
                     self.evaluate(self.eval_data,
                                   best_dag,
                                   'val_best',
-                                  max_num=self.args.batch_size * 100)
+                                  max_num=self.args.batch_size * 100,
+                                  mlp_dag=best_mlp_dag)
                 self.save_model()
 
             if self.epoch >= self.args.shared_decay_after:
                 utils.update_lr(self.shared_optim, self.shared_lr)
 
-    def get_loss(self, inputs, targets, hidden, dags):
+    def get_loss(self, inputs, targets, hidden, dags, mlp_dags=None):
         """Computes the loss for the same batch for M models.
 
         This amounts to an estimate of the loss, which is turned into an
@@ -245,10 +256,17 @@ class Trainer(object):
 
         if not isinstance(dags, list):
             dags = [dags]
+        # copy over logic from above
+        if (mlp_dags is not None) and (not isinstance(mlp_dags, list)):
+            mlp_dags = [mlp_dags]
+        # if mlp_dags is none, then create list of nones to be compatible with below zipped for loop
+        elif mlp_dags is None:
+            mlp_dags = [None] * len(dags)
 
         loss = 0
-        for dag in dags:
-            output, hidden, extra_out = self.shared(inputs, dag, hidden=hidden)
+        extra_out = None
+        for dag, mlp_dag in zip(dags, mlp_dags):
+            output, hidden, extra_out = self.shared(inputs, dag, hidden=hidden, mlp_dag=mlp_dag)
 
             output_flat = output.view(-1, self.args.num_classes)
             sample_loss = (self.ce(output_flat, targets) /
@@ -256,9 +274,10 @@ class Trainer(object):
             loss += sample_loss
 
         assert len(dags) == 1, 'there are multiple `hidden` for multple `dags`'
+        assert extra_out is not None, 'dags cannot be empty'
         return loss, hidden, extra_out
 
-    def train_shared(self, max_step=None, dag=None):
+    def train_shared(self, max_step=None, dag=None, mlp_dags=None):
         """Train the language model for 400 steps of minibatches of 64
         examples.
 
@@ -302,9 +321,13 @@ class Trainer(object):
 
             # if step > max_step:
             #     break
+            if self.args.apply_mlp and mlp_dags is None:
+                mlp_dags = self.controller.sample_mlp(self.args.shared_num_samples)
+
 
             dags = dag if dag else self.controller.sample(
                 self.args.shared_num_sample)
+
             # inputs, targets = self.get_batch(self.train_data,
             #                                  train_idx,
             #                                  self.max_length)
@@ -312,7 +335,8 @@ class Trainer(object):
             loss, hidden, extra_out = self.get_loss(inputs,
                                                     labels,
                                                     hidden,
-                                                    dags)
+                                                    dags,
+                                                    mlp_dags)
             hidden.detach_()
             raw_total_loss += loss.data
 
@@ -344,7 +368,7 @@ class Trainer(object):
             self.shared_step += 1
             train_idx += self.max_length
 
-    def get_reward(self, dag, entropies, hidden, valid_idx=0):
+    def get_reward(self, dag, entropies, hidden, valid_idx=0, mlp_dag=None):
         """Computes the perplexity of a single sampled model on a minibatch of
         validation data.
         """
@@ -368,7 +392,7 @@ class Trainer(object):
             targets = valid_batch[7]
 
         # inputs, targets = self.valid_data[valid_idx]
-        valid_loss, hidden, _ = self.get_loss(inputs, targets, hidden, dag)
+        valid_loss, hidden, _ = self.get_loss(inputs, targets, hidden, dag, mlp_dags=mlp_dag)
         valid_loss = utils.to_item(valid_loss.data)
 
         valid_ppl = valid_loss# math.exp(valid_loss)
@@ -420,16 +444,31 @@ class Trainer(object):
             # sample models
             dags, log_probs, entropies = self.controller.sample(
                 with_details=True)
+            if self.args.apply_mlp:
+                mlp_dags, mlp_log_probs, mlp_entropies = self.controller.sample_mlp(with_details=True)
+                # calculate reward
+                np_mlp_entropies = mlp_entropies.data.cpu().numpy()
+                entropy_history.extend(np_mlp_entropies)
+            else:
+                mlp_dags = None
 
             # calculate reward
             np_entropies = entropies.data.cpu().numpy()
             # NOTE(brendan): No gradients should be backpropagated to the
             # shared model during controller training, obviously.
             with _get_no_grad_ctx_mgr():
-                rewards, hidden = self.get_reward(dags,
-                                                  np_entropies,
-                                                  hidden,
-                                                  valid_idx)
+                if self.args.apply_mlp:
+                    all_entorpies = np.concatenate((np_entropies, mlp_entropies))
+                    rewards, hidden = self.get_reward(dags,
+                                                      all_entorpies,
+                                                      hidden,
+                                                      valid_idx,
+                                                      mlp_dags)
+                else:
+                    rewards, hidden = self.get_reward(dags,
+                                                      np_entropies,
+                                                      hidden,
+                                                      valid_idx)
 
             # discount
             if 1 > self.args.discount > 0:
@@ -456,7 +495,9 @@ class Trainer(object):
                                                    self.cuda,
                                                    requires_grad=False)
             if self.args.entropy_mode == 'regularizer':
-                loss -= self.args.entropy_coeff * entropies
+                # add mlp_entropies if it exists
+                mlp_entropies = mlp_entropies if self.args.apply_mlp else 0.
+                loss -= self.args.entropy_coeff * (entropies + mlp_entropies)
 
             loss = loss.sum()  # or loss.mean()
 
@@ -477,7 +518,8 @@ class Trainer(object):
                                                  entropy_history,
                                                  reward_history,
                                                  avg_reward_base,
-                                                 dags)
+                                                 dags,
+                                                 mlp_dags)
 
                 reward_history, adv_history, entropy_history = [], [], []
                 total_loss = 0
@@ -493,7 +535,7 @@ class Trainer(object):
             if prev_valid_idx > valid_idx:
                 hidden = self.shared.init_hidden(self.args.batch_size)
 
-    def evaluate(self, source, dag, name, batch_size=1, max_num=None):
+    def evaluate(self, source, dag, name, batch_size=1, max_num=None, mlp_dag=None):
         """Evaluate on the validation set.
 
         NOTE(brendan): We should not be using the test set to develop the
@@ -525,7 +567,8 @@ class Trainer(object):
             output, hidden, _ = self.shared(inputs,
                                             dag,
                                             hidden=hidden,
-                                            is_train=False)
+                                            is_train=False,
+                                            mlp_dag=mlp_dag)
             output_flat = output.view(-1, self.args.num_classes)
             total_loss += len(targets) * self.ce(output_flat, targets).data
             hidden.detach_()
@@ -563,23 +606,53 @@ class Trainer(object):
 
         dags, _, entropies = self.controller.sample(sample_num,
                                                     with_details=True)
+        if self.args.apply_mlp:
+            mlp_dags, _, mlp_entropies = self.controller.sample_mlp(sample_num, with_details=True)
+            max_R = 0
+            best_dag = None
+            best_mlp_dag = None
+            all_entropies = torch.cat((entropies, mlp_entropies))
+            for dag, mlp_dag in zip(dags, mlp_dags):
+                R, _ = self.get_reward(dag, all_entropies, hidden, valid_idx, mlp_dag=mlp_dag)
+                if R.max() > max_R:
+                    max_R = R.max()
+                    best_dag = dag
+                    best_mlp_dag = mlp_dag
 
-        max_R = 0
-        best_dag = None
-        for dag in dags:
-            R, _ = self.get_reward(dag, entropies, hidden, valid_idx)
-            if R.max() > max_R:
-                max_R = R.max()
-                best_dag = dag
+            logger.info(f'derive | max_R: {max_R:8.6f}')
+            fname = (f'{self.epoch:03d}-{self.controller_step:06d}-'
+                     f'{max_R:6.4f}-best.png')
+            path = os.path.join(self.args.model_dir, 'networks', fname)
+            utils.draw_network(best_dag, path)
+            self.tb.image_summary('derive/best', [path], self.epoch)
 
-        logger.info(f'derive | max_R: {max_R:8.6f}')
-        fname = (f'{self.epoch:03d}-{self.controller_step:06d}-'
-                 f'{max_R:6.4f}-best.png')
-        path = os.path.join(self.args.model_dir, 'networks', fname)
-        utils.draw_network(best_dag, path)
-        self.tb.image_summary('derive/best', [path], self.epoch)
+            fname = (f'mlp_{self.epoch:03d}-{self.controller_step:06d}-'
+                     f'{max_R:6.4f}-best.png')
+            mlp_path = os.path.join(self.args.model_dir, 'networks', fname)
+            utils.draw_network(best_mlp_dag, mlp_path)
 
-        return best_dag
+            self.tb.image_summary('derive/best_mlp', [mlp_path], self.epoch)
+
+        else:
+            max_R = 0
+            best_dag = None
+            for dag in dags:
+                R, _ = self.get_reward(dag, entropies, hidden, valid_idx)
+                if R.max() > max_R:
+                    max_R = R.max()
+                    best_dag = dag
+
+            logger.info(f'derive | max_R: {max_R:8.6f}')
+            fname = (f'{self.epoch:03d}-{self.controller_step:06d}-'
+                     f'{max_R:6.4f}-best.png')
+            path = os.path.join(self.args.model_dir, 'networks', fname)
+            utils.draw_network(best_dag, path)
+            self.tb.image_summary('derive/best', [path], self.epoch)
+
+        if self.args.apply_mlp:
+            return best_dag, best_mlp_dag
+        else:
+            return best_dag
 
     @property
     def shared_lr(self):
@@ -674,7 +747,8 @@ class Trainer(object):
                                     entropy_history,
                                     reward_history,
                                     avg_reward_base,
-                                    dags):
+                                    dags,
+                                    mlp_dags=None):
         """Logs the controller's progress for this training epoch."""
         cur_loss = total_loss / self.args.log_step
 
@@ -719,6 +793,18 @@ class Trainer(object):
             self.tb.image_summary('controller/sample',
                                   paths,
                                   self.controller_step)
+            if mlp_dags is not None:
+                for mlp_dag in mlp_dags:
+                    fname = (f'mlp_{self.epoch:03d}-{self.controller_step:06d}-'
+                             f'{avg_reward:6.4f}.png')
+                    path = os.path.join(self.args.model_dir, 'networks', fname)
+                    utils.draw_network(mlp_dag, path)
+                    paths.append(path)
+
+                self.tb.image_summary('controller/sample_mlp',
+                                      paths,
+                                      self.controller_step)
+
 
     def _summarize_shared_train(self, total_loss, raw_total_loss):
         """Logs a set of training steps."""
