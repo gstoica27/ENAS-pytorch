@@ -418,9 +418,12 @@ class Controller(torch.nn.Module):
             # sample input node from existing nodes
             input_node = probs.multinomial(num_samples=self.network_configs['mlp']['max_merge'],
                                            replacement=True).data
+            selected_log_prob = log_prob.gather(
+                1, utils.get_variable(input_node, requires_grad=False))
+            selected_log_prob_flat = selected_log_prob.reshape((-1))
             # update records
             entropies.append(entropy)
-            log_probs.append(log_prob)
+            log_probs.append(selected_log_prob_flat)
             prev_nodes.append(input_node)
             # select input node embedding
             # [B, I+1, H] -> [B, H]
@@ -464,9 +467,14 @@ class Controller(torch.nn.Module):
             # compute loss values
             act_log_prob = F.log_softmax(act_logits, dim=-1)
             act_entropy = -(act_log_prob * act_probs).sum(1, keepdim=False)
+
+            selected_act_log_prob = act_log_prob.gather(
+                1, utils.get_variable(act_type, requires_grad=False))
+            selected_log_prob_flat = selected_act_log_prob[:, 0]
+
             # update records
             entropies.append(act_entropy)
-            log_probs.append(act_log_prob)
+            log_probs.append(selected_log_prob_flat)
             activations.append(act_type)
             # set values for LSTM loop
             act_type = act_type.reshape(act_type.shape[0])
