@@ -55,6 +55,10 @@ def _apply_penalties(extra_out, args):
         penalty += (args.norm_stabilizer_regularization_amount *
                     (extra_out['hiddens'].norm(dim=-1) -
                      args.norm_stabilizer_fixed_point).pow(2).mean())
+        if args.apply_mlp:
+            penalty += (args.norm_stabilizer_regularization_amount *
+                        (extra_out['mlp_logits'].norm(dim=-1) -
+                         args.norm_stabilizer_fixed_point).pow(2).mean())
 
     return penalty
 
@@ -291,6 +295,7 @@ class Trainer(object):
         from the fixed controller policy, and averaging their gradients
         computed on a batch of training data.
         """
+        torch.autograd.set_detect_anomaly(True)
         model = self.shared
         model.train()
         self.controller.eval()
@@ -308,6 +313,7 @@ class Trainer(object):
         raw_total_loss = 0
         total_loss = 0
         train_idx = 0
+
         # TODO(brendan): Why - 1 - 1?
         # while train_idx < self.train_data.size(0) - 1 - 1:
         for i, batch in enumerate(self.train_data):
@@ -322,7 +328,7 @@ class Trainer(object):
             # if step > max_step:
             #     break
             if self.args.apply_mlp and mlp_dags is None:
-                mlp_dags = self.controller.sample_mlp(self.args.shared_num_samples)
+                mlp_dags = self.controller.sample_mlp(self.args.shared_num_sample)
 
 
             dags = dag if dag else self.controller.sample(
@@ -344,6 +350,7 @@ class Trainer(object):
 
             # update
             self.shared_optim.zero_grad()
+
             loss.backward()
 
             h1tohT = extra_out['hiddens']

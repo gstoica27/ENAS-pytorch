@@ -157,8 +157,6 @@ class TACRED_RNN(models.shared_base.SharedModel):
                                           args.emb_dim,
                                           dropout=args.shared_dropoute,
                                           padding_idx=constant.PAD_ID)
-        self.emb_matrix = torch.from_numpy(args.emb_matrix)
-        self.token_emb.weight.data.copy_(self.emb_matrix)
 
         self.mlp_input_dims = [args.shared_hid]
 
@@ -166,12 +164,18 @@ class TACRED_RNN(models.shared_base.SharedModel):
             self.pos_emb = EmbeddingDropout(len(constant.POS_TO_ID), args.pos_dim,
                                                dropout=args.shared_dropoute,
                                                padding_idx=constant.PAD_ID)
-            self.mlp_input_dims.append(args.pos_dim)
+            # self.mlp_input_dims.append(args.pos_dim)
         if args.ner_dim > 0:
             self.ner_emb = EmbeddingDropout(len(constant.NER_TO_ID), args.ner_dim,
                                                dropout=args.shared_dropoute,
                                                padding_idx=constant.PAD_ID)
-            self.mlp_input_dims.append(args.pos_dim)
+            # self.mlp_input_dims.append(args.pos_dim)
+
+        if args.pe_dim > 0:
+            self.pe_emb = nn.Embedding(constant.MAX_LEN * 2 + 1, args.pe_dim)
+            # Append twice for both subj and obj
+            self.mlp_input_dims.append(args.pe_dim)
+            self.mlp_input_dims.append(args.pe_dim)
 
         input_size = args.emb_dim
         
@@ -201,8 +205,8 @@ class TACRED_RNN(models.shared_base.SharedModel):
         self.w_h = collections.defaultdict(dict)
         self.w_c = collections.defaultdict(dict)
 
-        for idx in range(args.num_blocks):
-            for jdx in range(idx + 1, args.num_blocks):
+        for idx in range(args.num_rnn_blocks):
+            for jdx in range(idx + 1, args.num_rnn_blocks):
                 self.w_h[idx][jdx] = nn.Linear(args.shared_hid,
                                                args.shared_hid,
                                                bias=False)
@@ -223,8 +227,8 @@ class TACRED_RNN(models.shared_base.SharedModel):
         # tensor.
         self.mlp_weights = collections.defaultdict(lambda: collections.defaultdict(dict))
         # TODO: Remove this +3 magic number (need to reflect it back across controller_v2)
-        for block_id in range(args.num_blocks + 3):
-            for activation_id in range(args.shared_mlp_activations):
+        for block_id in range(args.num_mlp_blocks + 3):
+            for activation_id in args.shared_mlp_activations:
                 # The first N blocks act as input encoders. These cannot take residual inputs from
                 # each other, and so each has only one possible weight per activation layer
                 if block_id < len(self.mlp_input_dims):
@@ -244,13 +248,13 @@ class TACRED_RNN(models.shared_base.SharedModel):
                                               args.shared_hid,
                                               bias=False)
                         else:
-                            layer = nn.Linear(args.max_mlp_merge *  args.shared_hid,
+                            layer = nn.Linear(args.shared_hid,
                                               args.shared_hid,
                                               bias=False)
                         self.mlp_weights[block_id][activation_id][input_idx] = layer
                         all_weights.append(layer)
 
-        self.mlp_weights_dummy = nn.ModuleList(all_weights)
+        self._mlp_weights_dummy = nn.ModuleList(all_weights)
 
         self.importance_fn = nn.Linear(args.shared_hid, 1, bias=True)
 
@@ -260,6 +264,9 @@ class TACRED_RNN(models.shared_base.SharedModel):
             self.batch_norm = None
 
         self.reset_parameters()
+        self.emb_matrix = torch.from_numpy(args.emb_matrix)
+        self.token_emb.weight.data.copy_(self.emb_matrix)
+
         self.static_init_hidden = utils.keydefaultdict(self.init_hidden)
 
         logger.info(f'# of parameters: {format(self.num_parameters, ",d")}')
@@ -311,7 +318,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
                 # store target activation, all activations from sources are the same
                 activation_storage[target_node] = target_activation
                 # end of model, need to average sources for output
-                if target_node >= (self.args.num_blocks + 3):
+                if target_node >= (self.args.num_mlp_blocks + 3):
                     all_projections.append(source_value)
                 else:
                     # obtain projection
@@ -321,7 +328,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
                     # add projection to list of all affected sources
                     all_projections.append(source_projected)
             # All sources have been transformed, merge then and activate the result
-            projections_merged = torch.mean(torch.stack(all_projections, dim=-1), dim=-1)
+            projections_merged = torch.mean(torch.stack(all_projections, dim=1), dim=1)
             target_activation = self.get_f(activation_storage[target_node])
             projections_activated = target_activation(projections_merged)
             # store node output for future layer lookup and reference
@@ -350,6 +357,12 @@ class TACRED_RNN(models.shared_base.SharedModel):
 
 
         words, masks, pos, ner, deprel, subj_pos, obj_pos = inputs
+
+        if self.args.pe_dim:
+            subj_emb = self.pe_emb(subj_pos + constant.MAX_LEN)
+            obj_emb = self.pe_emb(obj_pos + constant.MAX_LEN)
+
+
         # seq_lens = list(masks.data.eq(constant.PAD_ID).long().sum(1).squeeze())
         batch_size = words.size()[0]
         time_steps = words.size()[1]
@@ -360,10 +373,10 @@ class TACRED_RNN(models.shared_base.SharedModel):
         # extract input embeddings
         word_inputs = self.token_emb(words)
         inputs = [word_inputs]
-        if self.args.pos_dim > 0:
-            inputs += [self.pos_emb(pos)]
-        if self.args.ner_dim > 0:
-            inputs += [self.ner_emb(ner)]
+        # if self.args.pos_dim > 0:
+        #     inputs += [self.pos_emb(pos)]
+        # if self.args.ner_dim > 0:
+        #     inputs += [self.ner_emb(ner)]
         emb_inputs = torch.cat(inputs, dim=2)  # add dropout to input
 
         embed = self.encoder(emb_inputs)
@@ -439,7 +452,11 @@ class TACRED_RNN(models.shared_base.SharedModel):
                                    self.args.shared_dropout if is_train else 0)
         # apply MLP based attention
         if mlp_dag is not None:
-            mlp_logits = self.apply_mlp(inputs=output, dag=mlp_dag)
+            if self.args.pe_dim > 0:
+                inputs = [output, subj_emb, obj_emb]
+            else:
+                inputs = [output]
+            mlp_logits = self.apply_mlp(inputs=inputs, dag=mlp_dag)
             # [BatchSize, NumSteps, 1]
             mlp_attn = torch.softmax(self.importance_fn(mlp_logits), dim=1)
             # distribute weights
@@ -459,6 +476,8 @@ class TACRED_RNN(models.shared_base.SharedModel):
         extra_out = {'dropped': dropped_output,
                      'hiddens': h1tohT,
                      'raw': raw_output}
+        if mlp_dag is not None:
+            extra_out['mlp_logits'] = mlp_logits
         return decoded, hidden, extra_out
 
     def cell(self, x, h_prev, dag):
@@ -497,7 +516,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
 
             for next_node in nodes:
                 next_id = next_node.id
-                if next_id == self.args.num_blocks:
+                if next_id == self.args.num_rnn_blocks:
                     leaf_node_ids.append(node_id)
                     assert len(nodes) == 1, ('parent of leaf node should have '
                                              'only one child')
@@ -528,7 +547,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
         if self.batch_norm is not None:
             output = self.batch_norm(output)
 
-        return output, h[self.args.num_blocks - 1]
+        return output, h[self.args.num_rnn_blocks - 1]
 
     def init_hidden(self, batch_size):
         zeros = torch.zeros(batch_size, self.args.shared_hid)
@@ -564,7 +583,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
 
             for next_node in nodes:
                 next_id = next_node.id
-                if next_id == self.args.num_blocks:
+                if next_id == self.args.num_rnn_blocks:
                     assert len(nodes) == 1, 'parent of leaf node should have only one child'
                     continue
 

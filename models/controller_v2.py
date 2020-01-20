@@ -200,7 +200,7 @@ class Controller(torch.nn.Module):
                 self.idx_l_2 = torch.nn.Linear(args.controller_hid, args.controller_hid)
                 self.idx_l_3 = torch.nn.Linear(args.controller_hid, 1)
                 # layer embeddings
-                self.layer_embs = torch.nn.Embedding(len(args.mlp_layer_sizes), args.controller_hid)
+                # self.layer_embs = torch.nn.Embedding(len(args.mlp_layer_sizes), args.controller_hid)
                 # activation embeddings
                 self.act_embs = torch.nn.Embedding(len(args.shared_mlp_activations), args.controller_hid)
                 act_names = args.shared_mlp_activations
@@ -211,12 +211,12 @@ class Controller(torch.nn.Module):
                                                'index_attn': {'l_1': self.idx_l_1,
                                                               'l_2': self.idx_l_2,
                                                               'l_3': self.idx_l_3},
-                                               'layer_embs': self.layer_embs,
+                                               # 'layer_embs': self.layer_embs,
                                                'act_embs': self.act_embs,
                                                'act_names': act_names,
                                                'lstm': self.lstm,
                                                'num_blocks': args.num_mlp_blocks,
-                                               'layer_map': args.mlp_layer_sizes,
+                                               # 'layer_map': args.mlp_layer_sizes,
                                                'max_merge': args.max_mlp_merge}
 
             else:

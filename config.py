@@ -20,18 +20,17 @@ net_arg = add_argument_group('Network')
 net_arg.add_argument('--network_type', type=str, choices=['rnn', 'cnn'], default='rnn')
 
 # RNN Controller
-net_arg.add_argument('--num_blocks', type=int, default=12)
+net_arg.add_argument('--num_rnn_blocks', type=int, default=12)
 net_arg.add_argument('--tie_weights', type=str2bool, default=True)
 net_arg.add_argument('--controller_hid', type=int, default=100)
-net_arg.add_argument('--num_mlp_blocks', type=int, default=12)
+# net_arg.add_argument('--num_mlp_blocks', type=int, default=12)
 # MLP Controller
 net_arg.add_argument('--apply_mlp', type=str2bool, default=True)
 net_arg.add_argument('--num_mlp_inputs', type=int, default=3)
-net_arg.add_argument('--num_mlp_blocks', type=int, default=10)
+net_arg.add_argument('--num_mlp_blocks', type=int, default=1)
 net_arg.add_argument('--shared_mlp_activations', type=eval, default="['tanh', 'ReLU', 'identity', 'sigmoid']")
-net_arg.add_argument('--num_rnn_blocks', type=int, default=10)
 net_arg.add_argument('--max_mlp_merge', type=int, default=3)
-net_arg.add_argument('--network_types', type=eval, default="{'mlp', 'rnn'}")
+net_arg.add_argument('--network_types', type=eval, default="['mlp', 'rnn']")
 
 # Shared parameters for PTB
 # NOTE(brendan): See Merity config for wdrop
@@ -76,6 +75,7 @@ net_arg.add_argument('--cnn_hid', type=int, default=64)
 net_arg.add_argument('--emb_dim', type=int, default=300, help='Word embedding dimension.')
 net_arg.add_argument('--ner_dim', type=int, default=30, help='NER embedding dimension.')
 net_arg.add_argument('--pos_dim', type=int, default=30, help='POS embedding dimension.')
+net_arg.add_argument('--pe_dim', type=int, default=1000, help='Position embedding dimension')
 net_arg.add_argument('--hidden_dim', type=int, default=200, help='RNN hidden state size.')
 net_arg.add_argument('--num_layers', type=int, default=2, help='Num of RNN layers.')
 net_arg.add_argument('--dropout', type=float, default=0.5, help='Input and RNN dropout rate.')
