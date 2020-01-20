@@ -382,7 +382,7 @@ class Controller(torch.nn.Module):
 
         # [B, L, H]
         inputs = self.static_inputs[batch_size].cuda()
-        hidden = self.static_init_hidden[batch_size].cuda()
+        hidden = self.static_init_hidden[batch_size]
         # record architecture decisions
         activations = []
         # layer_sizes = []
