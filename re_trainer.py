@@ -465,7 +465,8 @@ class Trainer(object):
             # shared model during controller training, obviously.
             with _get_no_grad_ctx_mgr():
                 if self.args.apply_mlp:
-                    all_entorpies = np.concatenate((np_entropies, mlp_entropies))
+                    # print('np_entropies: {} | mlp_entropies: {}'.format(np_entropies, mlp_entropies))
+                    all_entorpies = np.concatenate((np_entropies, np_mlp_entropies))
                     rewards, hidden = self.get_reward(dags,
                                                       all_entorpies,
                                                       hidden,
