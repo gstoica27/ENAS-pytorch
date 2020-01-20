@@ -27,7 +27,7 @@ net_arg.add_argument('--controller_hid', type=int, default=100)
 # MLP Controller
 net_arg.add_argument('--apply_mlp', type=str2bool, default=True)
 net_arg.add_argument('--num_mlp_inputs', type=int, default=3)
-net_arg.add_argument('--num_mlp_blocks', type=int, default=10)
+net_arg.add_argument('--num_mlp_blocks', type=int, default=5)
 net_arg.add_argument('--shared_mlp_activations', type=eval, default="['tanh', 'ReLU', 'identity', 'sigmoid']")
 net_arg.add_argument('--max_mlp_merge', type=int, default=3)
 net_arg.add_argument('--network_types', type=eval, default="['mlp', 'rnn']")

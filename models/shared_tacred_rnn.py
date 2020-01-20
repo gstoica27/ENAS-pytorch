@@ -460,7 +460,7 @@ class TACRED_RNN(models.shared_base.SharedModel):
             # [BatchSize, NumSteps, 1]
             mlp_attn = torch.softmax(self.importance_fn(mlp_logits), dim=1)
             # distribute weights
-            output *= mlp_attn
+            output = mlp_attn * output
             output = torch.sum(output, 1)
         else:
             output = torch.mean(output, 1)
