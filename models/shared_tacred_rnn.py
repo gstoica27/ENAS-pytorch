@@ -430,10 +430,10 @@ class TACRED_RNN(models.shared_base.SharedModel):
             logits.append(logit)
             h1tohT.append(hidden)
 
-        if clipped_num > 0:
-            logger.info(f'clipped {clipped_num} hidden states in one forward '
-                        f'pass. '
-                        f'max clipped hidden state norm: {max_clipped_norm}')
+        #if clipped_num > 0:
+         #   logger.info(f'clipped {clipped_num} hidden states in one forward '
+          #              f'pass. '
+           #             f'max clipped hidden state norm: {max_clipped_norm}')
 
         h1tohT = torch.stack(h1tohT)
         output = torch.stack(logits)
