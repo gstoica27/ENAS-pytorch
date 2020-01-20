@@ -456,6 +456,7 @@ class Trainer(object):
                 # calculate reward
                 np_mlp_entropies = mlp_entropies.data.cpu().numpy()
                 entropy_history.extend(np_mlp_entropies)
+                log_probs = torch.cat((log_probs, mlp_log_probs))
             else:
                 mlp_dags = None
 
