@@ -35,13 +35,14 @@ def main(args):  # pylint:disable=redefined-outer-name
             opt['num_classes'] = len(constant.LABEL_TO_ID)
 
             # load vocab
-            vocab_file = "/Volumes/External HDD/dataset/tacred/data/vocab/vocab.pkl"
-            emb_file = '/Volumes/External HDD/dataset/tacred/data/vocab/embedding.npy'
-            opt['data_dir'] = '/Volumes/External HDD/dataset/tacred/data/json'
-
-            # emb_file = '/home/scratch/gis/datasets/vocab/embedding.npy'
-            # vocab_file = '/home/scratch/gis/datasets/vocab/vocab.pkl'
-            # opt['data_dir'] = '/home/scratch/gis/datasets/tacred/data/json'
+            if args.local:
+                vocab_file = "/Volumes/External HDD/dataset/tacred/data/vocab/vocab.pkl"
+                emb_file = '/Volumes/External HDD/dataset/tacred/data/vocab/embedding.npy'
+                opt['data_dir'] = '/Volumes/External HDD/dataset/tacred/data/json'
+            else:
+                emb_file = '/home/scratch/gis/datasets/vocab/embedding.npy'
+                vocab_file = '/home/scratch/gis/datasets/vocab/vocab.pkl'
+                opt['data_dir'] = '/home/scratch/gis/datasets/tacred/data/json'
 
             vocab = Vocab(vocab_file, load=True)
             opt['vocab_size'] = vocab.size
