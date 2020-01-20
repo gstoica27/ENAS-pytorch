@@ -205,7 +205,7 @@ class Controller(torch.nn.Module):
                 self.act_embs = torch.nn.Embedding(len(args.shared_mlp_activations), args.controller_hid)
                 act_names = args.shared_mlp_activations
                 # create LSTM parameters
-                self.lstm = torch.nn.LSTMCell(args.controller_hid, args.controller_hid)
+                self.mlp_lstm = torch.nn.LSTMCell(args.controller_hid, args.controller_hid)
                 # store mlp parameters
                 self.network_configs['mlp'] = {'input_embs': self.input_embs,
                                                'index_attn': {'l_1': self.idx_l_1,
@@ -214,7 +214,7 @@ class Controller(torch.nn.Module):
                                                # 'layer_embs': self.layer_embs,
                                                'act_embs': self.act_embs,
                                                'act_names': act_names,
-                                               'lstm': self.lstm,
+                                               'lstm': self.mlp_lstm,
                                                'num_blocks': args.num_mlp_blocks,
                                                # 'layer_map': args.mlp_layer_sizes,
                                                'max_merge': args.max_mlp_merge}
@@ -381,8 +381,8 @@ class Controller(torch.nn.Module):
         lstm = self.network_configs['mlp']['lstm']
 
         # [B, L, H]
-        inputs = self.static_inputs[batch_size]
-        hidden = self.static_init_hidden[batch_size]
+        inputs = self.static_inputs[batch_size].cuda()
+        hidden = self.static_init_hidden[batch_size].cuda()
         # record architecture decisions
         activations = []
         # layer_sizes = []
