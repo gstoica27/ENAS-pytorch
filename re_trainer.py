@@ -218,6 +218,24 @@ class Trainer(object):
         else:
             mlp_dag = None
 
+        # This stuff in comments should be deleted!
+        # if self.epoch % self.args.save_epoch == 0:
+        #     with _get_no_grad_ctx_mgr():
+        #         if self.args.apply_mlp:
+        #             best_dags = dag, mlp_dag if (dag and mlp_dag) else self.derive()
+        #             best_dag = best_dags[1][0]
+        #             best_mlp_dag = best_dags[1][1]
+        #         else:
+        #             best_dag = dag if dag else self.derive()
+        #             best_mlp_dag = None
+        #
+        #         self.evaluate(self.eval_data,
+        #                       best_dag,
+        #                       'val_best',
+        #                       max_num=self.args.batch_size * 100,
+        #                       mlp_dag=best_mlp_dag)
+        #     self.save_model()
+
         if self.args.shared_initial_step > 0:
             self.train_shared(self.args.shared_initial_step)
             self.train_controller()
@@ -235,7 +253,9 @@ class Trainer(object):
             if self.epoch % self.args.save_epoch == 0:
                 with _get_no_grad_ctx_mgr():
                     if self.args.apply_mlp:
-                        best_dag, best_mlp_dag = dag, mlp_dag if (dag and mlp_dag) else self.derive()
+                        best_dags = dag, mlp_dag if (dag and mlp_dag) else self.derive()
+                        best_dag = best_dags[1][0]
+                        best_mlp_dag = best_dags[1][1]
                     else:
                         best_dag = dag if dag else self.derive()
                         best_mlp_dag = None
