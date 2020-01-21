@@ -498,9 +498,9 @@ class Controller(torch.nn.Module):
                 utils.draw_mlp_network(dag, os.path.join(save_dir, f'graph{idx}_mlp.png'))
 
         if with_details:
-            print('lens | log_probs: {} | entropies: {}'.format(len(log_probs), len(entropies)))
-            print('log_probs shapes: {}'.format([i.shape for i in log_probs]))
-            print('entropies shapes: {}'.format([i.shape for i in entropies]))
+            # print('lens | log_probs: {} | entropies: {}'.format(len(log_probs), len(entropies)))
+            # print('log_probs shapes: {}'.format([i.shape for i in log_probs]))
+            # print('entropies shapes: {}'.format([i.shape for i in entropies]))
             return dags, torch.cat(log_probs), torch.cat(entropies)
 
         return dags
