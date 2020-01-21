@@ -420,6 +420,8 @@ class Controller(torch.nn.Module):
                                            replacement=True).data
             selected_log_prob = log_prob.gather(
                 1, utils.get_variable(input_node, requires_grad=False))
+            # sum components for future loss & reward distribution
+            selected_log_prob = torch.sum(selected_log_prob, dim=-1)
             selected_log_prob_flat = selected_log_prob.reshape((-1))
             # update records
             entropies.append(entropy)
