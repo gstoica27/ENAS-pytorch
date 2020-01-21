@@ -638,7 +638,7 @@ class Trainer(object):
             fname = (f'mlp_{self.epoch:03d}-{self.controller_step:06d}-'
                      f'{max_R:6.4f}-best.png')
             mlp_path = os.path.join(self.args.model_dir, 'networks', fname)
-            utils.draw_network(best_mlp_dag, mlp_path)
+            utils.draw_mlp_network(best_mlp_dag, mlp_path)
 
             self.tb.image_summary('derive/best_mlp', [mlp_path], self.epoch)
 
@@ -807,7 +807,7 @@ class Trainer(object):
                     fname = (f'mlp_{self.epoch:03d}-{self.controller_step:06d}-'
                              f'{avg_reward:6.4f}.png')
                     path = os.path.join(self.args.model_dir, 'networks', fname)
-                    utils.draw_network(mlp_dag, path)
+                    utils.draw_mlp_network(mlp_dag, path)
                     paths.append(path)
 
                 self.tb.image_summary('controller/sample_mlp',
