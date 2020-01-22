@@ -336,64 +336,65 @@ class Trainer(object):
 
         # TODO(brendan): Why - 1 - 1?
         # while train_idx < self.train_data.size(0) - 1 - 1:
-        for i, batch in enumerate(self.train_data):
-            # parse batch
-            if self.cuda:
-                inputs = [b.cuda() for b in batch[:7]]
-                labels = batch[7].cuda()
-            else:
-                inputs = [b for b in batch[:7]]
-                labels = batch[7]
+        while step < max_step:
+            for i, batch in enumerate(self.train_data):
+                # parse batch
+                if self.cuda:
+                    inputs = [b.cuda() for b in batch[:7]]
+                    labels = batch[7].cuda()
+                else:
+                    inputs = [b for b in batch[:7]]
+                    labels = batch[7]
 
-            # if step > max_step:
-            #     break
-            if self.args.apply_mlp and mlp_dags is None:
-                mlp_dags = self.controller.sample_mlp(self.args.shared_num_sample)
+                # if step > max_step:
+                #     break
+                if self.args.apply_mlp and mlp_dags is None:
+                    mlp_dags = self.controller.sample_mlp(self.args.shared_num_sample)
 
 
-            dags = dag if dag else self.controller.sample(
-                self.args.shared_num_sample)
+                dags = dag if dag else self.controller.sample(
+                    self.args.shared_num_sample)
 
-            # inputs, targets = self.get_batch(self.train_data,
-            #                                  train_idx,
-            #                                  self.max_length)
+                # inputs, targets = self.get_batch(self.train_data,
+                #                                  train_idx,
+                #                                  self.max_length)
 
-            loss, hidden, extra_out = self.get_loss(inputs,
-                                                    labels,
-                                                    hidden,
-                                                    dags,
-                                                    mlp_dags)
-            hidden.detach_()
-            raw_total_loss += loss.data
+                loss, hidden, extra_out = self.get_loss(inputs,
+                                                        labels,
+                                                        hidden,
+                                                        dags,
+                                                        mlp_dags)
+                hidden.detach_()
+                raw_total_loss += loss.data
 
-            loss += _apply_penalties(extra_out, self.args)
+                loss += _apply_penalties(extra_out, self.args)
 
-            # update
-            self.shared_optim.zero_grad()
+                # update
+                self.shared_optim.zero_grad()
 
-            loss.backward()
+                loss.backward()
 
-            h1tohT = extra_out['hiddens']
-            new_abs_max_hidden_norm = utils.to_item(
-                h1tohT.norm(dim=-1).data.max())
-            if new_abs_max_hidden_norm > abs_max_hidden_norm:
-                abs_max_hidden_norm = new_abs_max_hidden_norm
-                logger.info(f'max hidden {abs_max_hidden_norm}')
-            abs_max_grad = _check_abs_max_grad(abs_max_grad, model)
-            torch.nn.utils.clip_grad_norm(model.parameters(),
-                                          self.args.shared_grad_clip)
-            self.shared_optim.step()
+                h1tohT = extra_out['hiddens']
+                new_abs_max_hidden_norm = utils.to_item(
+                    h1tohT.norm(dim=-1).data.max())
+                if new_abs_max_hidden_norm > abs_max_hidden_norm:
+                    abs_max_hidden_norm = new_abs_max_hidden_norm
+                    logger.info(f'max hidden {abs_max_hidden_norm}')
+                abs_max_grad = _check_abs_max_grad(abs_max_grad, model)
+                torch.nn.utils.clip_grad_norm(model.parameters(),
+                                              self.args.shared_grad_clip)
+                self.shared_optim.step()
 
-            total_loss += loss.data
+                total_loss += loss.data
 
-            if ((step % self.args.log_step) == 0) and (step > 0):
-                self._summarize_shared_train(total_loss, raw_total_loss)
-                raw_total_loss = 0
-                total_loss = 0
+                if ((step % self.args.log_step) == 0) and (step > 0):
+                    self._summarize_shared_train(total_loss, raw_total_loss)
+                    raw_total_loss = 0
+                    total_loss = 0
 
-            step += 1
-            self.shared_step += 1
-            train_idx += self.max_length
+                step += 1
+                self.shared_step += 1
+                train_idx += self.max_length
 
     def get_reward(self, dag, entropies, hidden, valid_idx=0, mlp_dag=None):
         """Computes the perplexity of a single sampled model on a minibatch of
