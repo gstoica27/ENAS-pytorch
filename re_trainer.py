@@ -542,7 +542,7 @@ class Trainer(object):
 
             total_loss += utils.to_item(loss.data)
 
-            if ((step % self.args.log_step) == 0) and (step > 0):
+            if ((step % self.args.log_step) == 0) and (step >= 0):
                 self._summarize_controller_train(total_loss,
                                                  adv_history,
                                                  entropy_history,
